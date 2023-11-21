@@ -8,39 +8,66 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch, useSelector } from 'react-redux';
 import { setWalletBalance } from '../redux/WalletSlice';
 
+
 const MyWalletScreen = () => {
   const [activeTab, setActiveTab] = useState('ongoingCombos');
-  const [loadingScreen, setLoadingScreen] = useState(true); // Added loadingScreen state
+  const [loadingScreen, setLoadingScreen] = useState(true);
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { balance, loading } = useSelector((state) => state.wallet);
+  const [userCombos, setUserCombos] = useState([]);
+
+  const handleTabPress = (tab) => {
+    setActiveTab(tab);
+  };
+
+  const formatDate = (dateString) => {
+    const options = { weekday: 'short', day: 'numeric', month: 'short' };
+    const formattedDate = new Date(dateString).toLocaleDateString('en-US', options);
+    return formattedDate;
+  };
+  
+
+  const handleNavigation = (routeName) => {
+    switch (routeName) {
+      case 'SendMoney':
+        navigation.navigate('SendMoneyScreen');
+        break;
+      case 'Withdraw':
+        navigation.navigate('WithdrawScreen');
+        break;
+      case 'FundWallet':
+        navigation.navigate('FundWalletScreen');
+        break;
+      case 'PayCombo':
+        navigation.navigate('PayComboScreen');
+        break;
+      default:
+        // Handle other cases if needed.
+        break;
+    }
+  };
 
   useEffect(() => {
-    // Check if the user is logged in and fetch wallet balance if so
     checkUserLogin();
-  }, []); // Run once when the component mounts
-
+  }, []);
   const checkUserLogin = async () => {
     try {
-      // Retrieve the user data and access token from AsyncStorage
       const userData = await AsyncStorage.getItem('user');
       const accessToken = await AsyncStorage.getItem('token');
 
       if (!userData || !accessToken) {
-        // Handle the case where user data or access token is not found
         Alert.alert('User data or Access Token not found', 'Please log in again.');
-        setLoadingScreen(false); // Update loadingScreen state
+        setLoadingScreen(false);
         return;
       }
 
-      // Parse user data from JSON
       const user = JSON.parse(userData);
 
-      // Set wallet data or show login prompt
       fetchWalletBalance(accessToken);
     } catch (error) {
       console.error('Error checking user login:', error);
-      setLoadingScreen(false); // Update loadingScreen state in case of an error
+      setLoadingScreen(false);
     }
   };
 
@@ -56,6 +83,7 @@ const MyWalletScreen = () => {
         const data = await response.json();
         // Update the wallet balance in the Redux store
         dispatch(setWalletBalance(data.balance));
+        fetchUserCombos(accessToken);
       } else {
         // Handle error cases if needed
         console.error('Error fetching wallet balance:', response.statusText);
@@ -67,6 +95,26 @@ const MyWalletScreen = () => {
     }
   };
 
+  const fetchUserCombos = async (accessToken) => {
+    try {
+      const combosResponse = await fetch('https://easypay.intelps.cloud/api/orders', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (combosResponse.ok) {
+        const combosData = await combosResponse.json();
+        setUserCombos(combosData.combos);
+      } else {
+        console.error('Error fetching user comb:', combosResponse.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching user combos:', error);
+    }
+  };
+
+
   return (
     <SafeAreaView>
       <Header />
@@ -77,7 +125,6 @@ const MyWalletScreen = () => {
             <ActivityIndicator size="large" color="#3498db" />
           </View>
         ) : balance ? (
-          // User is logged in, render wallet content
           <>
             {/* Wallet Balance Section */}
             <View style={styles.walletBalance}>
@@ -130,32 +177,23 @@ const MyWalletScreen = () => {
             {/* Content based on the active tab */}
             {activeTab === 'ongoingCombos' && (
               <View style={styles.ongoingCombos}>
-                {/* Sample Ongoing Combo Card */}
-                <View style={styles.comboCard}>
-                  <Text style={styles.comboName}>Combo Title</Text>
-                  <Text>Combo ID: 123456</Text>
-                  <Text>Next Date to Pay: 2023-12-01</Text>
-                  <Text>Amount to Pay: ₦50</Text>
-                  <Text>Remaining Balance: ₦450</Text>
-                  <TouchableOpacity
-                    style={styles.viewDetailsButton}
-                    onPress={() => navigation.navigate('ComboDetails', { comboId: '1' })}
-                  >
-                    <Text style={styles.viewDetailsButtonText}>View Details</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.comboCard}>
-                  <Text style={styles.comboName}>Combo Title</Text>
-                  <Text>Combo ID: 123456</Text>
-                  <Text>Next Date to Pay: 2023-12-01</Text>
-                  <Text>Amount to Pay: ₦50</Text>
-                  <Text>Remaining Balance: ₦450</Text>
-                  <TouchableOpacity style={styles.viewDetailsButton}>
-                    <Text style={styles.viewDetailsButtonText}>View Details</Text>
-                  </TouchableOpacity>
-                </View>
+               {/* Render user combos dynamically */}
+                {userCombos.map((combo) => (
+                  <View key={combo.order_id} style={styles.comboCard}>
+                    <Text style={styles.comboName}>{combo.combo_title}</Text>
+                    <Text>Order ID: {combo.order_id}</Text>
+                    <Text>Next Date to Pay: {formatDate(combo.next_payment_date)}</Text>
+                    <Text>Amount to Pay: ₦{combo.amount_to_pay}</Text>
+                    <Text>Remaining Balance: ₦{combo.remaining_balance}</Text>
+                    <TouchableOpacity
+                      style={styles.viewDetailsButton}
+                      onPress={() => navigation.navigate('ComboDetails', { comboId: combo.order_id })}
+                    >
+                      <Text style={styles.viewDetailsButtonText}>View Details</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
-                {/* Add more combo cards as needed */}
               </View>
             )}
 

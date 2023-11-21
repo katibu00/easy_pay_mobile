@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Collapse, CollapseHeader, CollapseBody } from 'accordion-collapse-react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import LoadingModal from "../components/LoadingModal";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { useNavigation } from '@react-navigation/native';
 
-const FundWalletScreen = () => {
+
+const FundWalletScreen = ({ orderId, paymentAmount }) => {
   const [bankTransferExpanded, setBankTransferExpanded] = useState(false);
   const [creditCardExpanded, setCreditCardExpanded] = useState(false);
+  const [walletExpanded, setWalletExpanded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const navigation = useNavigation();
+
 
   const handleBankTransferToggle = () => {
     setBankTransferExpanded(!bankTransferExpanded);
@@ -14,6 +23,59 @@ const FundWalletScreen = () => {
   const handleCreditCardToggle = () => {
     setCreditCardExpanded(!creditCardExpanded);
   };
+
+  const handleWalletToggle = () => {
+    setWalletExpanded(!walletExpanded);
+  };
+
+
+
+  const handlePayWithWallet = async () => {
+    setIsLoading(true);
+  
+    try {
+      const userToken = await AsyncStorage.getItem('token');
+  
+      const response = await axios.post(
+        'https://easypay.intelps.cloud/api/make-payment',
+        {
+          orderId: orderId,
+          paymentAmount: paymentAmount,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+  
+      setIsLoading(false);
+  
+      // Display success message
+      Alert.alert('Success', 'Payment successful!', [
+        {
+          text: 'OK',
+          onPress: () => {
+         
+            // navigation.replace('ComboDetails', { comboId: orderId });
+          },
+        },
+      ]);
+    
+    } catch (error) {
+      console.error('Error making payment with wallet:', error);
+  
+      // Display error message
+      Alert.alert('Error', 'Payment failed. Please try again.', [
+        { text: 'OK', onPress: () => console.log('OK Pressed') },
+      ]);
+    
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+   
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -43,7 +105,7 @@ const FundWalletScreen = () => {
       <Collapse isCollapsed={creditCardExpanded} onToggle={handleCreditCardToggle}>
         <CollapseHeader>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Credit & Debit Card</Text>
+            <Text style={styles.cardTitle}>Debit Card</Text>
             <View style={styles.cardIcons}>
               <FontAwesome name="cc-visa" size={20} color="white" />
               <FontAwesome name="cc-mastercard" size={20} color="white" />
@@ -70,6 +132,28 @@ const FundWalletScreen = () => {
           </View>
         </CollapseBody>
       </Collapse>
+       {/* Wallet Card */}
+       <Collapse isCollapsed={walletExpanded} onToggle={handleWalletToggle}>
+        <CollapseHeader>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Wallet</Text>
+            <FontAwesome
+              name={walletExpanded ? 'chevron-down' : 'chevron-right'}
+              size={20}
+              color="white"
+            />
+          </View>
+        </CollapseHeader>
+        <CollapseBody>
+          <View style={styles.cardBody}>
+            <TouchableOpacity style={styles.payNowButton} onPress={handlePayWithWallet}>
+              <Text style={styles.payNowButtonText}>Pay with Wallet</Text>
+            </TouchableOpacity>
+          </View>
+        </CollapseBody>
+      </Collapse>
+      <LoadingModal isVisible={isLoading} />
+
     </ScrollView>
   );
 };
